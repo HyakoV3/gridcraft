@@ -737,3 +737,18 @@ fn date_groups_are_written_without_sort_type() {
     });
     assert!(!parts["xl/pivotTables/pivotTable1.xml"].contains("sortType="));
 }
+
+/// A date group in source order is written as `sortType="manual"` and read back in source order.
+#[test]
+fn date_group_in_source_order_round_trips_as_manual() {
+    let mut wb = workbook();
+    let pivot = wb.sheet_mut(1).unwrap().pivots.get_mut(1).unwrap();
+    assert_ne!(pivot.rows[0].date_group, PivotDateGroup::None);
+    pivot.rows[0].sort = PivotSort::None;
+    let bytes = write_xlsx(&wb).unwrap();
+    let t2 = String::from_utf8(unzip(&bytes).get("xl/pivotTables/pivotTable2.xml").unwrap().clone()).unwrap();
+    assert!(t2.contains("sortType=\"manual\""), "{t2}");
+    let (back, _) = read_xlsx(&bytes).unwrap();
+    assert_eq!(back.sheet(1).unwrap().pivots[1].rows[0].sort, PivotSort::None);
+    assert_eq!(back.sheet(1).unwrap().pivots[1].rows[1].sort, PivotSort::Asc, "the Months group keeps its default");
+}
