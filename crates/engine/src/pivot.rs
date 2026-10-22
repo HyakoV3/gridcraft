@@ -48,7 +48,7 @@ impl Source {
     /// `Region `).
     pub fn col(&self, name: &str) -> Option<usize> {
         self.headers.iter().position(|h| h.eq_ignore_ascii_case(name)).or_else(|| {
-            let mut found = self.headers.iter().enumerate().filter(|(_, h)| h.trim().eq_ignore_ascii_case(name.trim()));
+            let mut found = self.headers.iter().enumerate().filter(|(_, h)| h.trim().to_lowercase() == name.trim().to_lowercase());
             match (found.next(), found.next()) {
                 (Some((i, _)), None) => Some(i),
                 _ => None,
@@ -1603,5 +1603,32 @@ mod fit_tests {
         assert!(!data_cols_exceed_sheet(64, false, 256));
         assert!(!data_cols_exceed_sheet(16_384, false, 0));
         assert!(data_cols_exceed_sheet(16_385, false, 0));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn source(headers: &[&str]) -> Source {
+        Source {
+            sheet: 0,
+            range: RangeRef::parse("A1:C2").unwrap(),
+            headers: headers.iter().map(|h| h.to_string()).collect(),
+            formats: vec![],
+            numeric: vec![],
+            dates: vec![],
+            rows: vec![],
+        }
+    }
+
+    #[test]
+    fn column_lookup_trims_and_compares_case_for_every_script() {
+        let s = source(&["RÉGION ", "Sales", "Qty"]);
+        assert_eq!(s.col("RÉGION "), Some(0));
+        assert_eq!(s.col("région"), Some(0), "non-ASCII case differs and the header has a trailing space");
+        assert_eq!(s.col("sales"), Some(1));
+        // Two headers that match once trimmed are ambiguous: neither is picked.
+        assert_eq!(source(&["Region ", " Region"]).col("Region"), None);
     }
 }
