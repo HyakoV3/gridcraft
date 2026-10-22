@@ -450,7 +450,15 @@ fn build_cache(wb: &Workbook, pt: &PivotTable, pivot_sheet: usize) -> Option<Cac
             formula: None,
         });
     }
-    let find = |fields: &[CField], name: &str| fields.iter().position(|f| f.col.is_some() && same(&f.name, name));
+    // An exact match first; a name that differs only in its outer spaces (a pivot read from a file
+    // that trimmed its fields) matches when exactly one field does.
+    let find = |fields: &[CField], name: &str| {
+        fields.iter().position(|f| f.col.is_some() && same(&f.name, name)).or_else(|| {
+            let mut trimmed = fields.iter().enumerate().filter(|(_, f)| f.col.is_some() && same(f.name.trim(), name.trim()));
+            let i = trimmed.next().map(|(i, _)| i)?;
+            trimmed.next().is_none().then_some(i)
+        })
+    };
 
     // Records (rows that aren't entirely blank), read once.
     let mut rows: Vec<u32> = Vec::new();
