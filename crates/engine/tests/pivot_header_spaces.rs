@@ -48,3 +48,32 @@ fn headers_with_spaces_keep_their_fields_through_refresh_and_save() {
     assert_eq!((pivot.rows.len(), pivot.values.len()), (1, 2), "{pivot:?}");
     let _ = text(&reopened, 1, "A1");
 }
+
+/// The field commands take a field by its name without the header's outer spaces, as
+/// `insert.pivotTable` does (`Region` for the header `Region `).
+#[test]
+fn field_commands_find_a_spaced_field_by_its_trimmed_name() {
+    let mut s = Session::new();
+    s.new_workbook();
+    run(
+        &mut s,
+        "range.setValues",
+        json!({"range": "A1", "values": [["Region ", "Date ", "Sales "], ["East", 45000, 10], ["West", 45100, 20], ["East", 45200, 5]]}),
+    );
+    run(&mut s, "selection.set", json!({"range": "A1"}));
+    run(&mut s, "insert.pivotTable", json!({"rows": ["Region"], "values": ["Sales"]}));
+    assert_eq!(first_pivot(&s).rows[0].source_col, "Region ");
+
+    run(&mut s, "pivot.sort", json!({"field": "Region", "order": "desc"}));
+    run(&mut s, "pivot.collapse", json!({"field": "Region", "items": ["East"]}));
+    run(&mut s, "pivot.moveField", json!({"field": "Region", "from": "rows", "to": "columns"}));
+    assert_eq!(first_pivot(&s).columns[0].source_col, "Region ");
+    run(&mut s, "pivot.moveField", json!({"field": "Region", "from": "columns", "to": "rows"}));
+    run(&mut s, "pivot.addField", json!({"field": "Date", "area": "rows"}));
+    run(&mut s, "pivot.group", json!({"field": "Date", "by": "months"}));
+    run(&mut s, "pivot.valueSettings", json!({"field": "Sales", "func": "average"}));
+    run(&mut s, "pivot.removeField", json!({"field": "Region", "area": "rows"}));
+    let pivot = first_pivot(&s);
+    assert_eq!(pivot.rows.len(), 1, "{pivot:?}");
+    assert_eq!(pivot.rows[0].source_col, "Date ");
+}
