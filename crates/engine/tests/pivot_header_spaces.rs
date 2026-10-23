@@ -77,3 +77,21 @@ fn field_commands_find_a_spaced_field_by_its_trimmed_name() {
     assert_eq!(pivot.rows.len(), 1, "{pivot:?}");
     assert_eq!(pivot.rows[0].source_col, "Date ");
 }
+
+/// A value caption that equals an axis field's trimmed name doesn't stand in for that field.
+#[test]
+fn axis_command_does_not_pick_a_value_caption_of_the_same_name() {
+    let mut s = Session::new();
+    s.new_workbook();
+    run(&mut s, "range.setValues", json!({"range": "A1", "values": [["Sum of Sales ", "Sales"], ["a", 1], ["b", 2]]}));
+    run(&mut s, "selection.set", json!({"range": "A1"}));
+    run(&mut s, "insert.pivotTable", json!({"rows": ["Sum of Sales"], "values": ["Sales"]}));
+    let pivot = first_pivot(&s);
+    assert_eq!(pivot.rows[0].source_col, "Sum of Sales ");
+    assert_eq!(pivot.values[0].name, "Sum of Sales");
+    run(&mut s, "pivot.sort", json!({"field": "Sum of Sales", "order": "desc"}));
+    run(&mut s, "pivot.valueSettings", json!({"field": "Sum of Sales", "func": "average"}));
+    let pivot = first_pivot(&s);
+    assert_eq!(pivot.rows[0].sort, gridcraft_engine::model::PivotSort::Desc);
+    assert_eq!(pivot.values[0].func, gridcraft_engine::model::PivotFunc::Average);
+}
