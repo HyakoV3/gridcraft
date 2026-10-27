@@ -311,12 +311,13 @@ pub fn col_width_to_px(w: f64, mdw: u32) -> f32 {
 }
 
 /// Model width (px) → stored column width, for a Normal font whose widest digit is `mdw` px wide.
+/// A stored width is at most 255 characters, so a wider model width is capped at `255 * mdw` px.
 pub fn px_to_col_width(px: f32, mdw: u32) -> f64 {
     let m = f64::from(mdw.max(1));
-    let px = (px.max(0.0) as f64).round().min(255.0 * m + 5.0);
+    let px = (px.max(0.0) as f64).round().min(255.0 * m);
     let back = |w: f64| col_width_to_px(w, mdw) as f64;
     let chars = if px > 12.0 { ((px - 5.0) / m * 100.0 + 0.5).trunc() / 100.0 } else { px / 12.0 };
-    let w = ((chars * m + 5.0) / m * 256.0).trunc() / 256.0;
+    let w = (((chars * m + 5.0) / m * 256.0).trunc() / 256.0).min(255.0);
     if back(w) == px {
         return w;
     }
@@ -348,6 +349,15 @@ mod tests {
         for mdw in [5, 6, 7, 8, 9, 10, 12] {
             for px in 0..400 {
                 assert_eq!(col_width_to_px(px_to_col_width(px as f32, mdw), mdw), px as f32, "px {px} at mdw {mdw}");
+            }
+        }
+        // A stored width is at most 255 characters: a wider model width is capped there and reads back as that cap.
+        for mdw in [5, 6, 7, 8, 9, 10, 12] {
+            let cap = col_width_to_px(255.0, mdw);
+            for px in [cap, cap + 1.0, cap + 5.0, 2300.0, 5000.0, f32::MAX] {
+                let w = px_to_col_width(px, mdw);
+                assert!(w <= 255.0, "px {px} at mdw {mdw} stores {w}");
+                assert_eq!(col_width_to_px(w, mdw), cap.min(px), "px {px} at mdw {mdw}");
             }
         }
         // The spec's example: 8 characters of a 7 px digit store 8.7109375 and read back as 61 px.
